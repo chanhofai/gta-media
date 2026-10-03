@@ -1,0 +1,85 @@
+name: Convert cards
+
+# Instagram only takes JPEG and fetches each card from this repo's Pages URL,
+# so a card has to sit at cards/gta-YYYY-MM-DD.jpg as a real 1080x1350 JPEG.
+# Upload whatever ChatGPT gave you — a PNG is fine — named after the day it is
+# for, and this turns it into that card and removes the upload. A red run
+# means an upload needs a look; the run's summary says which and why.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One at a time, and each run starts from the latest main rather than the
+# commit that triggered it, so a queued run sees what the one before it did.
+concurrency:
+  group: convert-cards
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0     # commit times decide between two uploads for one day
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Pinned: the cards made by hand and the cards made here come out
+      # byte-identical on the same Pillow. An upgrade is a deliberate change.
+      - run: pip install --quiet pillow==12.3.0
+
+      - name: Test the converter
+        run: python3 tools/test_convert_cards.py
+
+      - name: Convert uploads into cards
+        id: convert
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          changed="$RUNNER_TEMP/changed"
+          : > "$changed"
+          if [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            git diff --name-only --diff-filter=AMR -z "$BEFORE" "$AFTER" > "$changed"
+          fi
+          set +e
+          python3 tools/convert_cards.py --apply --changed-from "$changed" \
+            --commit-message "$RUNNER_TEMP/message"
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the cards
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit --quiet -F "$RUNNER_TEMP/message"
+          for i in 1 2 3 4; do
+            git push --quiet origin HEAD:main && exit 0
+            sleep $((2 ** i))
+            git pull --rebase --quiet origin main || { git rebase --abort; exit 1; }
+          done
+          exit 1
+
+      - name: Flag uploads that need a look
+        if: steps.convert.outputs.status != '0'
+        run: |
+          echo "::error::Some uploads could not be turned into cards. The run summary says which and why."
+          exit 1
