@@ -10,6 +10,9 @@ removed once the card exists. All of these work, in cards/ or at the top level:
     gta-2026-10-07.png          gta-2026-10-07.jpg.png
     gta-2026-10-07 (1).png      2026-10-07.webp
 
+A carousel's extra slides add a number after the date: gta-2026-11-05-2.png
+becomes cards/gta-2026-11-05-2.jpg.
+
 An upload always replaces the card already there for that day — re-uploading
 is how you swap an image. A file whose name does not say which day it is for
 is left alone and reported, because there is no safe way to guess.
@@ -49,11 +52,16 @@ CARDS = "cards"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".jfif", ".webp", ".gif", ".bmp",
                   ".tif", ".tiff", ".heic", ".heif", ".avif"}
 SKIP_TOP = {"tools"}                 # dot-folders (.git, .github) are skipped too
-DAY = re.compile(r"^(?:gta[-_ ]?)?(\d{4})-(\d{2})-(\d{2})(?:\s*\((\d+)\))?$", re.I)
+# An optional -2 .. -10 after the date is a carousel slide: gta-2026-11-05-2.png
+DAY = re.compile(r"^(?:gta[-_ ]?)?(\d{4})-(\d{2})-(\d{2})(?:-(\d{1,2}))?"
+                 r"(?:\s*\((\d+)\))?$", re.I)
 
 
 def parse_name(name: str) -> tuple[str, int] | None:
-    """The post date a filename is for, plus its "(n)" download-copy number.
+    """The card a filename is for, plus its "(n)" download-copy number.
+
+    The card is the post date, or the date and slide number for a carousel's
+    extra slides: "2026-11-05" or "2026-11-05-2". Slide 1 is the cover.
 
     Peels off any stack of image extensions first, because renaming a download
     by hand so often produces gta-2026-10-07.jpg.png.
@@ -72,7 +80,10 @@ def parse_name(name: str) -> tuple[str, int] | None:
         day = date(int(m[1]), int(m[2]), int(m[3])).isoformat()
     except ValueError:
         return None
-    return day, int(m[4] or 0)
+    slide = int(m[4] or 1)
+    if not 1 <= slide <= 10:
+        return None
+    return (day if slide == 1 else f"{day}-{slide}"), int(m[5] or 0)
 
 
 def is_image_name(name: str) -> bool:

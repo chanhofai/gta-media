@@ -78,6 +78,10 @@ for name, want in [
     ("gta-2026-02-30.png", None),
     ("ChatGPT Image Sep 22, 2026, 12_01_52 AM.png", None),
     ("2026-09-16-spring-mulch.jpg", None),
+    ("gta-2026-11-05-2.png", ("2026-11-05-2", 0)),
+    ("gta-2026-11-05-10 (1).png", ("2026-11-05-10", 1)),
+    ("gta-2026-11-05-1.png", ("2026-11-05", 0)),
+    ("gta-2026-11-05-11.png", None),
     ("gta-2026-10-07.md", None),
     (".gta-2026-10-07.jpg.tmp", None),
 ]:
@@ -95,6 +99,7 @@ rgba.paste((30, 60, 200, 255), (300, 300, 800, 1100))
 rgba.save(r / "gta-2026-10-06.png")
 (r / "cards/gta-2026-10-08.png").write_bytes(b"not an image at all")
 png(r / "ChatGPT Image Oct 3, 2026, 09_14_02 AM.png")
+png(r / "gta-2026-10-07-2.png", colour=(90, 90, 200))          # a carousel slide
 (r / "README.md").write_text("x")
 commit(r, 1_790_000_000)
 png(r / "cards/gta-2026-10-05.png", colour=(30, 200, 30))   # ...by this, later
@@ -142,6 +147,9 @@ check("...and that is flagged, not silent",
 check("an upload with no date in its name is left alone and flagged",
       (r / "ChatGPT Image Oct 3, 2026, 09_14_02 AM.png").exists()
       and any("does not say which day" in p for p in res.problems))
+check("a carousel slide becomes cards/gta-2026-10-07-2.jpg",
+      is_jpeg_card(r / "cards/gta-2026-10-07-2.jpg") and not (r / "gta-2026-10-07-2.png").exists()
+      and not (r / "cards/gta-2026-10-07.jpg").exists())
 check("never touches a file whose name is not a card's",
       (r / "README.md").read_text() == "x")
 check("every card is under Instagram's 8MB",
