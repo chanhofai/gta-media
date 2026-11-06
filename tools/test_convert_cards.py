@@ -185,5 +185,21 @@ check("a CMYK JPEG comes out RGB",
 check("a palette GIF comes out RGB",
       is_jpeg_card(r / "cards/gta-2026-10-13.jpg"))
 
+print("\npruning")
+from datetime import date as _d  # noqa: E402
+r = repo()
+for day in ("2026-10-01", "2026-10-20", "2026-10-21", "2026-11-05"):
+    card(r / f"cards/gta-{day}.jpg")
+card(r / "cards/gta-2026-10-01-2.jpg")
+(r / "README.md").write_text("x")
+dry = C.prune(r, 14, _d(2026, 11, 4), apply=False)
+check("a dry run removes nothing", (r / "cards/gta-2026-10-01.jpg").exists())
+gone = C.prune(r, 14, _d(2026, 11, 4), apply=True)
+check("removes cards (and their slides) more than 14 days past",
+      sorted(gone) == ["cards/gta-2026-10-01-2.jpg", "cards/gta-2026-10-01.jpg",
+                       "cards/gta-2026-10-20.jpg"] and dry == gone)
+check("keeps the last 14 days and everything ahead",
+      (r / "cards/gta-2026-10-21.jpg").exists() and (r / "cards/gta-2026-11-05.jpg").exists())
+
 print(f"\n{'ALL PASSED' if not FAILS else f'{len(FAILS)} FAILED: ' + ', '.join(FAILS)}")
 sys.exit(1 if FAILS else 0)

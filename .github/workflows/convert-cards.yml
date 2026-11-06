@@ -5,6 +5,9 @@ name: Convert cards
 # Upload whatever ChatGPT gave you — a PNG is fine — named after the day it is
 # for, and this turns it into that card and removes the upload. A red run
 # means an upload needs a look; the run's summary says which and why.
+#
+# It also removes cards whose day is more than 14 days gone. They are never
+# fetched again once posted, and they stay in the git history regardless.
 
 on:
   push:
@@ -14,6 +17,9 @@ on:
       - '.github/**'
       - 'tools/**'
   workflow_dispatch:
+  # Once a day, so past cards get cleared even in a week with no uploads.
+  schedule:
+    - cron: '17 14 * * *'      # ~1am Sydney
 
 permissions:
   contents: write
@@ -58,7 +64,7 @@ jobs:
           fi
           set +e
           python3 tools/convert_cards.py --apply --changed-from "$changed" \
-            --commit-message "$RUNNER_TEMP/message"
+            --commit-message "$RUNNER_TEMP/message" --prune-days 14
           echo "status=$?" >> "$GITHUB_OUTPUT"
 
       - name: Commit the cards

@@ -43,6 +43,9 @@ the conversion has to happen here.
   name.
 - **A red run emails you.** Open it from the Actions tab; the summary at the
   top says what needs a look. It still converts everything it can.
+- **Past cards clear themselves.** Once a card's day is more than 14 days
+  gone it is removed (it stays in the git history). Two weeks of margin keeps
+  a missed day publishable by hand.
 - **You can run it by hand** from Actions → Convert cards → Run workflow if a
   card ever looks wrong. It re-checks every card and only touches the broken
   ones.

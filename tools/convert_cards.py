@@ -32,7 +32,8 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 try:
@@ -198,6 +199,25 @@ def convert(src: Path, dest: Path, apply: bool) -> dict:
 class Result:
     done: list[dict] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
+    pruned: list[str] = field(default_factory=list)
+
+
+def prune(root: Path, keep_days: int, today: date, apply: bool) -> list[str]:
+    """Remove cards whose day is more than keep_days behind us.
+
+    Once a day has gone out, its card is never fetched again. Two weeks of
+    margin keeps a missed day publishable by hand. Removed cards stay in the
+    git history, so nothing is lost; the folder just stays short.
+    """
+    cutoff = today - timedelta(days=keep_days)
+    gone = []
+    for f in sorted((root / CARDS).glob("gta-*.jpg")):
+        parsed = parse_name(f.name)
+        if parsed and date.fromisoformat(parsed[0][:10]) < cutoff:
+            gone.append(rel(f, root))
+            if apply:
+                f.unlink()
+    return gone
 
 
 def run(root: Path, apply: bool, changed: list[str] | None = None) -> Result:
@@ -263,11 +283,18 @@ def rel(p: Path, root: Path) -> str:
 
 def commit_message(res: Result) -> str:
     n = len(res.done)
-    title = (f"Convert {res.done[0]['src']} into a card" if n == 1
-             else f"Convert {n} uploads into cards")
+    parts = []
+    if n:
+        parts.append(f"convert {res.done[0]['src']} into a card" if n == 1
+                     else f"convert {n} uploads into cards")
+    if res.pruned:
+        parts.append(f"remove {len(res.pruned)} past card"
+                     + ("s" if len(res.pruned) > 1 else ""))
+    title = " and ".join(parts)
     lines = [f"{d['src']} -> {d['dest']} ({d['was']}"
              + (f", {d['note']}" if d["note"] else "") + ")" for d in res.done]
-    return title + "\n\n" + "\n".join(lines) + "\n"
+    lines += [f"removed {r} (day has passed; still in the history)" for r in res.pruned]
+    return title[0].upper() + title[1:] + "\n\n" + "\n".join(lines) + "\n"
 
 
 def summary(res: Result, apply: bool) -> str:
@@ -279,6 +306,9 @@ def summary(res: Result, apply: bool) -> str:
                 for d in res.done]
     else:
         out.append("Nothing to convert — every card is already a 1080×1350 JPEG.")
+    if res.pruned:
+        out += ["", f"Removed {len(res.pruned)} past card(s): "
+                + ", ".join(f"`{r}`" for r in res.pruned)]
     if res.problems:
         out += ["", "### Needs a look", ""] + [f"- {p}" for p in res.problems]
     return "\n".join(out) + "\n"
@@ -296,12 +326,18 @@ def main() -> int:
                          "an image among them that names no day is reported")
     ap.add_argument("--commit-message", type=Path,
                     help="write a commit message here when anything changed")
+    ap.add_argument("--prune-days", type=int,
+                    help="also remove cards dated more than this many days ago "
+                         "(Sydney time); they stay in the git history")
     args = ap.parse_args()
 
     changed = None
     if args.changed_from and args.changed_from.exists():
         changed = [n for n in args.changed_from.read_text().split("\0") if n]
     res = run(args.root, args.apply, changed)
+    if args.prune_days is not None:
+        today = datetime.now(ZoneInfo("Australia/Sydney")).date()
+        res.pruned = prune(args.root.resolve(), args.prune_days, today, args.apply)
 
     for d in res.done:
         print(f"{d['src']:<44} -> {d['dest']:<26} {d['was']:<16} {d['note']}")
@@ -316,7 +352,9 @@ def main() -> int:
     if report:
         with open(report, "a") as f:
             f.write(summary(res, args.apply))
-    if args.commit_message and res.done and args.apply:
+    for r in res.pruned:
+        print(f"remove {r} (past)")
+    if args.commit_message and (res.done or res.pruned) and args.apply:
         args.commit_message.write_text(commit_message(res))
     return 1 if res.problems else 0
 
