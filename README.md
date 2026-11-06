@@ -3,8 +3,9 @@ Image host for Gardening Tips Australia
 
 ## How cards get here
 
-Generate the image in ChatGPT, download it, rename it after the day it is for,
-and upload it. **A PNG is fine**:
+On Windows, the easiest way in is the dropper in `tools/windows`: drop PNGs
+into `D:\gta-media` and they upload themselves. Otherwise: generate the image
+in ChatGPT, download it, rename it after the day it is for, and upload it. **A PNG is fine**:
 
 ```
 gta-2026-10-07.png
